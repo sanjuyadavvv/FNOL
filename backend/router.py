@@ -58,15 +58,6 @@ def determine_route(extracted: dict[str, Any], missing_fields: list[str]) -> Rou
             ),
         )
 
-    if estimate is not None:
-        return RouteDecision(
-            queue="Standard Review",
-            reason=(
-                f"Estimated damage ({CURRENCY_SYMBOL}{estimate:,.2f}) is at or above "
-                f"{CURRENCY_SYMBOL}{FAST_TRACK_THRESHOLD:,}; routed to standard review."
-            ),
-        )
-
     return RouteDecision(
         queue="Standard Review",
         reason="All mandatory fields present; routed to standard review.",
