@@ -382,10 +382,11 @@ function App() {
       <footer className="footer">
         <div className="footer-inner">
           <ul className="footer-rules">
+            <li>Manual review — missing mandatory fields</li>
+            <li>Investigation — fraud keywords in description</li>
+            <li>Specialist — injury claim type</li>
             <li>Fast-track — damage under $25k</li>
-            <li>Manual review — missing fields</li>
-            <li>Investigation — fraud keywords</li>
-            <li>Specialist — injury claims</li>
+            <li>Standard review — all checks pass</li>
           </ul>
         </div>
       </footer>

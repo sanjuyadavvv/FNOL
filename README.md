@@ -108,12 +108,11 @@ Rules are evaluated in priority order (first match wins):
 
 | Priority | Condition | Route |
 |----------|-----------|-------|
-| 1 | Description contains `fraud`, `inconsistent`, or `staged` | **Investigation Flag** |
-| 2 | Claim type includes `injury` | **Specialist Queue** |
-| 3 | Any mandatory field is missing | **Manual Review** |
+| 1 | Any mandatory field is missing | **Manual Review** |
+| 2 | Description contains `fraud`, `inconsistent`, or `staged` | **Investigation Flag** |
+| 3 | Claim type includes `injury` | **Specialist Queue** |
 | 4 | Estimated damage < $25,000 (all fields present) | **Fast-track** |
-| 5 | Estimated damage ≥ $25,000 | **Standard Processing** |
-| 6 | Fallback (all fields present, no damage amount) | **Standard Processing** |
+| 5 | Fallback (damage ≥ $25,000 or no damage amount) | **Standard Review** |
 
 ## API
 

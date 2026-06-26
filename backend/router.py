@@ -1,49 +1,86 @@
+import re
+from dataclasses import dataclass
 from typing import Any
 
-INVESTIGATION_KEYWORDS = ("fraud", "inconsistent", "staged")
+INVESTIGATION_KEYWORDS_RE = re.compile(r'\b(?:fraud|inconsistent|staged)\b')
 FAST_TRACK_THRESHOLD = 25_000
+CURRENCY_SYMBOL = "$"
 
 
-def determine_route(extracted: dict[str, Any], missing_fields: list[str]) -> tuple[str, str]:
-    description = (extracted.get("incidentInformation", {}).get("description") or "").lower()
-    claim_type = (extracted.get("other", {}).get("claimType") or "").lower()
-    damage = extracted.get("assetDetails", {}).get("estimatedDamageNumeric")
-    initial = extracted.get("other", {}).get("initialEstimateNumeric")
-    estimate = damage if damage is not None else initial
+@dataclass(frozen=True)
+class RouteDecision:
+    queue: str
+    reason: str
 
-    reasons: list[str] = []
 
-    for keyword in INVESTIGATION_KEYWORDS:
-        if keyword in description:
-            reasons.append(
-                f'Description contains "{keyword}", triggering investigation review.'
-            )
-            return "Investigation Flag", " ".join(reasons)
+def normalize_keys(d: dict) -> dict:
+    return {
+        k.lower(): normalize_keys(v) if isinstance(v, dict) else v
+        for k, v in d.items()
+    }
 
-    if "injury" in claim_type:
-        reasons.append("Claim type is injury-related; routed to specialist handling.")
-        return "Specialist Queue", " ".join(reasons)
+
+def determine_route(extracted: dict[str, Any], missing_fields: list[str]) -> RouteDecision:
+    extracted = normalize_keys(extracted)
+
+    description = (extracted.get("incidentinformation", {}).get("description") or "").lower()
+    claim_type  = (extracted.get("other", {}).get("claimtype") or "").lower()
+    damage      = extracted.get("assetdetails", {}).get("estimateddamagenumeric")
+    initial     = extracted.get("other", {}).get("initialestimatednumeric")
+    estimate    = damage if damage is not None else initial
 
     if missing_fields:
         missing_list = ", ".join(missing_fields)
-        reasons.append(
-            f"Mandatory fields missing ({missing_list}); requires manual review."
+        return RouteDecision(
+            queue="Manual Review",
+            reason=f"Mandatory fields missing ({missing_list}); requires manual review.",
         )
-        return "Manual Review", " ".join(reasons)
 
-    if estimate is not None and estimate < FAST_TRACK_THRESHOLD:
-        reasons.append(
-            f"Estimated damage (${estimate:,.2f}) is below ${FAST_TRACK_THRESHOLD:,}; "
-            "eligible for fast-track processing."
+    match = INVESTIGATION_KEYWORDS_RE.search(description)
+    if match:
+        return RouteDecision(
+            queue="Investigation Flag",
+            reason=f'Description contains "{match.group()}", triggering investigation review.',
         )
-        return "Fast-track", " ".join(reasons)
+
+    if "injury" in claim_type:
+        return RouteDecision(
+            queue="Specialist Queue",
+            reason="Claim type is injury-related; routed to specialist handling.",
+        )
+
+    if estimate is not None and 0 < estimate < FAST_TRACK_THRESHOLD:
+        return RouteDecision(
+            queue="Fast-track",
+            reason=(
+                f"Estimated damage ({CURRENCY_SYMBOL}{estimate:,.2f}) is below "
+                f"{CURRENCY_SYMBOL}{FAST_TRACK_THRESHOLD:,}; eligible for fast-track processing."
+            ),
+        )
 
     if estimate is not None:
-        reasons.append(
-            f"Estimated damage (${estimate:,.2f}) meets or exceeds ${FAST_TRACK_THRESHOLD:,}; "
-            "standard processing queue."
+        return RouteDecision(
+            queue="Standard Review",
+            reason=(
+                f"Estimated damage ({CURRENCY_SYMBOL}{estimate:,.2f}) is at or above "
+                f"{CURRENCY_SYMBOL}{FAST_TRACK_THRESHOLD:,}; routed to standard review."
+            ),
         )
-        return "Standard Processing", " ".join(reasons)
 
-    reasons.append("All mandatory fields present; routed to standard processing.")
-    return "Standard Processing", " ".join(reasons)
+    return RouteDecision(
+        queue="Standard Review",
+        reason="All mandatory fields present; routed to standard review.",
+    )
+
+
+def format_output(
+    extracted: dict[str, Any],
+    missing_fields: list[str],
+    decision: RouteDecision,
+) -> dict:
+    return {
+        "extractedFields": extracted,
+        "missingFields": missing_fields,
+        "recommendedRoute": decision.queue,
+        "reasoning": decision.reason,
+    }
